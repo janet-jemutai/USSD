@@ -1,5 +1,6 @@
 package com.example.equiussd.ussdController;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -12,10 +13,21 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import java.util.Scanner;
-
 @RestController
 public class UssdController {
+
+    // Function to fetch data from the endpoint
+    public JSONObject fetchData(String endpoint) {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String response = restTemplate.getForObject(endpoint, String.class);
+            return new JSONObject(response);
+        } catch (Exception e) {
+            // Print stack trace for debugging purposes
+            e.printStackTrace();
+            return null;
+        }
+    }
 
     @PostMapping("/ussd")
     public String handleUssdRequest(@RequestBody String requestBody) {
@@ -23,27 +35,24 @@ public class UssdController {
                 .stream(requestBody.split("&"))
                 .map(entry -> entry.split("="))
                 .collect(Collectors.toMap(entry -> entry[0], entry -> entry.length == 2 ? entry[1] : ""));
-        System.out.println("response body is:...."+ body);
-        String sessionId = body.get("sessionId");
-        String serviceCode = body.get("serviceCode");
-        String phoneNumber = body.get("phoneNumber");
+        System.out.println("response body is:...." + body);
         String text = body.get("text");
 
         StringBuilder response = new StringBuilder("");
 
         if (text.isEmpty()) {
-            response.append("CON Dear customer,kindly select your service:\n" +
+            response.append("CON Dear customer, kindly select your service:\n" +
                     "1. Register\n" +
-                    "2. Buy policy\n" +
-                    "3.Claims\n" +
-                    "4.Contact Us\n" +
-                    "5.Exit");
+                    "2. Marketplace\n" +
+                    "3. Loans \n" +
+                    "4. Services\n" +
+                    "5. Exit");
         } else if (text.equals("1")) {
             response.append("CON Enter your Details\n" +
-                    "1.Details\n" +
-                    "2.Exit"
+                    "1. Details\n" +
+                    "2. Exit"
             );
-        } else  if (text.startsWith("1*1")) {
+        } else if (text.startsWith("1*1")) {
             String[] parts = text.split("\\*");
             int numberOfStars = parts.length - 1; // Subtract 1 because parts array includes an empty string at index 0
             if (numberOfStars == 1) {
@@ -83,57 +92,68 @@ public class UssdController {
                 RestTemplate restTemplate = new RestTemplate();
                 String endpointUrl = "http://52.15.152.26:8082/api/v1/auth/register";
 
-                String responseFromEndpoint =  restTemplate.postForObject(endpointUrl, requestEntity, String.class);
+                String responseFromEndpoint = restTemplate.postForObject(endpointUrl, requestEntity, String.class);
                 System.out.println(responseFromEndpoint);
                 // Use the response from the endpoint as the USSD response
-                response.append(responseFromEndpoint);
+                response.append("CON you have  been registered successfully");
             }
-        }
-        else if (text.equals("2")) {
-            response.append("CON 1.Third party \n 2.Domestic");
-        } else if (text.equals("2*1")) {
-            response.append("CON 1.Enter ID number\n 2.Exit");
-        } else if (text.equals("2*1*1")) {
-            response.append("CON 1.Enter car plate number\n 2.exit");
-        } else if (text.equals("2*1*1*1")) {
-            response.append("CON 1.Enter start date\n 2.Exit");
-        } else if (text.equals("2*1*1*1*1")) {
-            response.append("CON select mode of payment:\n 1.Mobile money\n 2.Pay from Account");
-        } else if (text.equals("2*1*1*1*1*1")) {
-            response.append("CON 1.Enter mobile number: \n 2.exit");
-        } else if (text.equals("2*1*1*1*1*1*1")) {
-            response.append("END Do you wish to sh.1000 ?\n 1.Accept\n 2.Decline");
-        } else if (text.equals("2*1*1*1*1*2")) {
-            response.append("CON Select accoun to pay from: \n 1.ACC1 \n 2.ACC 2");
-        } else if (text.equals("2*1*1*1*1*2*1")) {
-            response.append("END Confirm sh.1000 policy purchase:\n 1.Accept \n 2.Decline");
-        } else if (text.equals("2*2")) {
-            response.append("CON 1.Enter ID number\n 2.Exit");
-        } else if (text.equals("2*1*1")) {
-            response.append("CON 1.Enter car plate number\n 2.exit");
-        } else if (text.equals("2*2*1*1")) {
-            response.append("CON 1.Enter start date\n 2.Exit");
-        } else if (text.equals("2*2*1*1*1")) {
-            response.append("CON select mode of payment:\n 1.Mobile money\n 2.Pay from Account");
-        } else if (text.equals("2*2*1*1*1*1")) {
-            response.append("CON 1.Enter mobile number: \n 2.exit");
-        } else if (text.equals("2*2*1*1*1*1*1")) {
-            response.append("END Do you wish to sh.1000 ?\n 1.Accept\n 2.Decline");
-        } else if (text.equals("2*2*1*1*1*2")) {
-            response.append("CON Select account to pay from: \n 1.ACC1 \n 2.ACC 2");
-        } else if (text.equals("2*2*1*1*1*2*1")) {
-            response.append("END Confirm sh.1000 policy purchase:\n 1.Accept \n 2.Decline");
+        } else if (text.equals("2")) {
+            JSONObject marketplaceData = fetchData("http://52.15.152.26:8082/api/v1/typeOfProducts/get/all");
+            if (marketplaceData != null) {
+                JSONArray productTypesArray = getProductTypesArray(marketplaceData);
+                if (productTypesArray != null && productTypesArray.length() > 0) {
+                    response.append("CON Welcome to the Marketplace. Select farm product type:\n");
+                    for (int i = 0; i < productTypesArray.length(); i++) {
+                        response.append((i + 1) + ". ").append(productTypesArray.getString(i)).append("\n");
+                    }
+                    response.append("0. Back");
+                } else {
+                    response.append("CON No farm product types available.\n 1. Exit");
+                }
+            } else {
+                response.append("CON Unable to fetch marketplace data.\n 1. Exit");
+            }
         } else if (text.equals("3")) {
-            response.append("CON 1.Enter Incident date\n 2.Exit");
-        } else if (text.equals("3*1")) {
-            response.append("CON 1.Enter Incident details \n 2.Exit");
-        } else if (text.equals("3*1*1")) {
-            response.append("CON 1.Enter your Email Address\n 2.Exit");
-        } else if (text.equals("3*1*1*1")) {
-            response.append("CON kindly confirm claim submission\n 1.Accept\n 2.Decline");
-        } else if (text.equals("4"))
-            response.append("END Reach us at:\n Tel:+(254)763000000\n Email:info@equitybank.co.ke");
+            // Handle claims logic
+        } else if (text.equals("4")) {
+            // Handle contact logic
+        } else if (text.equals("5")) {
+            // Handle exit logic
+        }
 
         return response.toString();
+    }
+
+    // Method to retrieve product types from the marketplace data
+    private JSONArray getProductTypesArray(JSONObject marketplaceData) {
+        // Check if marketplaceData is not null and contains the "Farm Products" key
+        if (marketplaceData != null && marketplaceData.has("Farm Products")) {
+            // Get the JSONArray associated with the key "Farm Products"
+            JSONArray farmProductsArray = marketplaceData.getJSONArray("Farm Products");
+
+            // Check if the farmProductsArray is not null and not empty
+            if (farmProductsArray != null && farmProductsArray.length() > 0) {
+                // Create a new JSONArray to store the product types
+                JSONArray productTypesArray = new JSONArray();
+
+                // Iterate through the farmProductsArray and extract product types
+                for (int i = 0; i < farmProductsArray.length(); i++) {
+                    // Get the JSONObject at index i
+                    JSONObject productObject = farmProductsArray.getJSONObject(i);
+
+                    // Check if the productObject contains the "product_type" key
+                    if (productObject.has("product_type")) {
+                        // Get the value associated with the key "product_type" and add it to the productTypesArray
+                        productTypesArray.put(productObject.getString("product_type"));
+                    }
+                }
+
+                // Return the productTypesArray containing the extracted product types
+                return productTypesArray;
+            }
+        }
+
+        // If marketplaceData is null or does not contain "Farm Products" key, return null
+        return null;
     }
 }
