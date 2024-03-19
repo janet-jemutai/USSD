@@ -17,11 +17,12 @@ import java.util.stream.Collectors;
 public class UssdController {
 
     // Function to fetch data from the endpoint
-    public JSONObject fetchData(String endpoint) {
+    public JSONArray fetchMarketplaceData(String endpoint) {
         try {
             RestTemplate restTemplate = new RestTemplate();
             String response = restTemplate.getForObject(endpoint, String.class);
-            return new JSONObject(response);
+            JSONObject jsonResponse = new JSONObject(response);
+            return jsonResponse.getJSONArray("entity"); // Adjust the key according to your JSON structure
         } catch (Exception e) {
             // Print stack trace for debugging purposes
             e.printStackTrace();
@@ -41,7 +42,7 @@ public class UssdController {
         StringBuilder response = new StringBuilder("");
 
         if (text.isEmpty()) {
-            response.append("CON Dear customer, kindly select your service:\n" +
+            response.append("CON Welcome to Equifarm:\n" +
                     "1. Register\n" +
                     "2. Marketplace\n" +
                     "3. Loans \n" +
@@ -95,65 +96,78 @@ public class UssdController {
                 String responseFromEndpoint = restTemplate.postForObject(endpointUrl, requestEntity, String.class);
                 System.out.println(responseFromEndpoint);
                 // Use the response from the endpoint as the USSD response
-                response.append("CON you have  been registered successfully");
+                response.append("END you have  been registered successfully");
             }
         } else if (text.equals("2")) {
-            JSONObject marketplaceData = fetchData("http://52.15.152.26:8082/api/v1/typeOfProducts/get/all");
-            if (marketplaceData != null) {
-                JSONArray productTypesArray = getProductTypesArray(marketplaceData);
-                if (productTypesArray != null && productTypesArray.length() > 0) {
-                    response.append("CON Welcome to the Marketplace. Select farm product type:\n");
-                    for (int i = 0; i < productTypesArray.length(); i++) {
-                        response.append((i + 1) + ". ").append(productTypesArray.getString(i)).append("\n");
-                    }
-                    response.append("0. Back");
-                } else {
-                    response.append("CON No farm product types available.\n 1. Exit");
+            // Display marketplace menu
+            response.append("CON Welcome to the Marketplace. Select a category:\n");
+            response.append("1. Buy\n");
+            response.append("2. Sell\n");
+            response.append("0. Back");
+        } else if (text.equals("2*1")) {
+            // Display Agrodealer menu
+            response.append("CON Select Agrodealer category:\n");
+            response.append("1. Farm Inputs\n");
+            response.append("2. Farm Tools\n");
+            response.append("0. Back");
+        } else if (text.equals("2*1*1")) {
+            // Display Farm Inputs menu
+            response.append("CON Select Farm Inputs category:\n");
+            response.append("1. Seeds\n");
+            response.append("2. Fertilizers\n");
+            response.append("3. Chemicals\n");
+            response.append("4. Feeds\n");
+            response.append("5. Seedlings\n");
+            response.append("0. Back");
+        } else if (text.equals("2*1*1*1")) {
+            // Display Seeds menu
+            response.append("CON Select Seeds category:\n");
+            response.append("1. Cereals\n");
+            response.append("2. Vegetables\n");
+            response.append("3. Legumes\n");
+            response.append("4. Fruits\n");
+            response.append("0. Back");
+        } else if (text.equals("2*1*1*1*1")) {
+            // Display Cereals menu
+            response.append("CON Select Cereals type:\n");
+            response.append("1. Maize\n");
+            response.append("2. Wheat\n");
+            response.append("3. Rice\n");
+            response.append("4. Sorghum\n");
+            response.append("5. Oats\n");
+            response.append("0. Back");
+        } else if (text.equals("2*1*1*1*1*1")) {
+            // Fetch data first
+            JSONArray productsArray = fetchMarketplaceData("http://localhost:8082/api/v1/marketproducts/get/marketproduducts");
+            if (productsArray != null && productsArray.length() > 0) {
+                // Initialize response
+                StringBuilder marketResponse = new StringBuilder("CON Available Products:\n");
+
+                // Process fetched data and build response
+                for (int i = 0; i < productsArray.length(); i++) {
+                    JSONObject product = productsArray.getJSONObject(i);
+                    marketResponse.append((i + 1) + ". ");
+                    marketResponse.append(" ").append(product.getString("businessName")).append(" ");
+                    marketResponse.append("   -: ").append(product.getString("description")).append("");
+                    marketResponse.append(" Ksh ").append(product.getInt("pricePerUnit"));
+                    marketResponse.append("/").append(product.getString("unit")).append(" ");
                 }
+                marketResponse.append("0. Back");
+
+                // Print fetched products
+                System.out.println("Fetched products: " + marketResponse.toString());
+
+                // Return response
+                return marketResponse.toString();
             } else {
-                response.append("CON Unable to fetch marketplace data.\n 1. Exit");
+                // No products available
+                return "CON No products available.\n 0. Back";
             }
-        } else if (text.equals("3")) {
-            // Handle claims logic
-        } else if (text.equals("4")) {
-            // Handle contact logic
-        } else if (text.equals("5")) {
-            // Handle exit logic
+        } else {
+            response.append("END Invalid input. Please try again.");
         }
 
+        // Return the USSD response
         return response.toString();
-    }
-
-    // Method to retrieve product types from the marketplace data
-    private JSONArray getProductTypesArray(JSONObject marketplaceData) {
-        // Check if marketplaceData is not null and contains the "Farm Products" key
-        if (marketplaceData != null && marketplaceData.has("Farm Products")) {
-            // Get the JSONArray associated with the key "Farm Products"
-            JSONArray farmProductsArray = marketplaceData.getJSONArray("Farm Products");
-
-            // Check if the farmProductsArray is not null and not empty
-            if (farmProductsArray != null && farmProductsArray.length() > 0) {
-                // Create a new JSONArray to store the product types
-                JSONArray productTypesArray = new JSONArray();
-
-                // Iterate through the farmProductsArray and extract product types
-                for (int i = 0; i < farmProductsArray.length(); i++) {
-                    // Get the JSONObject at index i
-                    JSONObject productObject = farmProductsArray.getJSONObject(i);
-
-                    // Check if the productObject contains the "product_type" key
-                    if (productObject.has("product_type")) {
-                        // Get the value associated with the key "product_type" and add it to the productTypesArray
-                        productTypesArray.put(productObject.getString("product_type"));
-                    }
-                }
-
-                // Return the productTypesArray containing the extracted product types
-                return productTypesArray;
-            }
-        }
-
-        // If marketplaceData is null or does not contain "Farm Products" key, return null
-        return null;
     }
 }
