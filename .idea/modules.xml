@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/equiussd.iml" filepath="$PROJECT_DIR$/.idea/equiussd.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/equiussd-major.iml" filepath="$PROJECT_DIR$/.idea/equiussd-major.iml" />
     </modules>
   </component>
 </project>
